@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { useLang } from '../lang'
 import { LangSwitch, Wordmark } from '../components/Chrome'
-import GoogleMap, { READINGS } from '../components/GoogleMap'
+import GoogleMap, { READINGS, type Reading } from '../components/GoogleMap'
 import { CHANNELS, type Channel } from '../components/Sections'
 import { Meter, Stat, StateGlyph } from '../components/ui'
+import { useDetections } from '../useDetections'
 import type { Copy } from '../copy'
 
 /* ── Operations ───────────────────────────────────────────────────────────
@@ -19,9 +20,9 @@ const CEILING = 15
 
 /* ── Headline figures ─────────────────────────────────────────────────── */
 
-function Figures({ copy }: { copy: Copy }) {
-  const flagged = READINGS.filter((r) => r.kind !== 'clear').length
-  const values = [`${READINGS.length} / 8`, '3 412', String(flagged), copy.dash.median]
+function Figures({ copy, readings }: { copy: Copy; readings: Reading[] }) {
+  const flagged = readings.filter((r) => r.kind !== 'clear').length
+  const values = [`${readings.length} / 8`, '3 412', String(flagged), copy.dash.median]
 
   return (
     <ul className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
@@ -148,7 +149,13 @@ export default function Dashboard() {
   const [sent, setSent] = useState<number[]>([])
   const listRef = useRef<HTMLUListElement>(null)
   const onSelect = useCallback((i: number) => setPicked(i), [])
-  const active = READINGS[picked]
+
+  // Live detections from the field units take over once any exist; until then
+  // the built-in demo readings keep the page populated.
+  const live = useDetections()
+  const readings = live.length ? live : READINGS
+
+  const active = readings[Math.min(picked, readings.length - 1)] ?? READINGS[0]
   const isAcked = acked.includes(picked)
   const isSent = sent.includes(picked)
 
@@ -159,11 +166,11 @@ export default function Dashboard() {
   // Worst first: this is a queue, not a fleet roster.
   const queue = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return READINGS.map((r, i) => ({ r, i }))
+    return readings.map((r, i) => ({ r, i }))
       .filter(({ r }) => (onlyFlagged ? r.kind !== 'clear' : true))
       .filter(({ r }) => (q ? r.vessel.toLowerCase().includes(q) : true))
       .sort((a, b) => Number(b.r.ppm) - Number(a.r.ppm))
-  }, [query, onlyFlagged])
+  }, [query, onlyFlagged, readings])
 
   // Up and down walk the queue in the order it is displayed, so the keyboard
   // and the eye agree about what "next" means.
@@ -215,7 +222,7 @@ export default function Dashboard() {
         </div>
 
         <div className="mt-10">
-          <Figures copy={copy} />
+          <Figures copy={copy} readings={readings} />
         </div>
 
         <div className="mt-10 grid gap-6 xl:grid-cols-12">
@@ -229,6 +236,7 @@ export default function Dashboard() {
                   onSelect={onSelect}
                   missingKeyLabel={copy.map.needKey}
                   errorLabel={copy.map.error}
+                  readings={readings}
                 />
                 {[
                   'top-0 left-0 border-t border-l',
@@ -282,7 +290,7 @@ export default function Dashboard() {
                     {copy.dash.queue}
                   </h2>
                   <span className="text-[11px] text-mute/70 tabular-nums">
-                    {queue.length} / {READINGS.length}
+                    {queue.length} / {readings.length}
                   </span>
                 </div>
 
@@ -318,7 +326,7 @@ export default function Dashboard() {
                   {queue.map(({ r, i }) => {
                     const on = picked === i
                     return (
-                      <li key={r.vessel}>
+                      <li key={r.id ?? `${r.vessel}-${i}`}>
                         <button
                           type="button"
                           onClick={() => setPicked(i)}
@@ -382,8 +390,14 @@ export default function Dashboard() {
                 <span className="text-[12px] text-mute tabular-nums">{active.time}</span>
               </p>
               <p className="mt-2 text-[12px] text-mute/70 tabular-nums">
-                {active.lat.toFixed(4)}° N {active.lng.toFixed(4)}° E ·{' '}
-                {String(active.heading).padStart(3, '0')}° · {active.speed} kn
+                {active.lat.toFixed(4)}° N {active.lng.toFixed(4)}° E
+                {active.source === 'pi' ? (
+                  active.iso ? <> · {active.iso.replace('T', ' ').replace('Z', ' UTC')}</> : null
+                ) : (
+                  <>
+                    {' '}· {String(active.heading).padStart(3, '0')}° · {active.speed} kn
+                  </>
+                )}
               </p>
 
               <p className="mt-8 flex items-baseline justify-between gap-4 text-[11px] tracking-[0.18em] text-mute uppercase">
@@ -395,7 +409,7 @@ export default function Dashboard() {
               <p className="mt-2.5 text-[clamp(2.2rem,4vw,2.9rem)] leading-none font-medium tracking-[-0.05em] text-ink tabular-nums">
                 {active.ppm}
                 <span className="ml-3 align-baseline text-[0.26em] font-normal tracking-[0.04em] text-mute">
-                  ppm
+                  {active.source === 'pi' ? 'ppm (est.)' : 'ppm'}
                 </span>
               </p>
               <Meter
@@ -404,25 +418,55 @@ export default function Dashboard() {
                 tall
               />
 
-              <dl className="mt-8">
-                {CHANNELS.map((c: Channel) => (
-                  <div
-                    key={c.key}
-                    className="grid grid-cols-[1fr_auto] items-baseline gap-x-5 border-t border-ink/12 pt-3.5 pb-4"
-                  >
-                    <dt className="text-[12.5px] text-mute">{copy.map.fields[c.key]}</dt>
-                    <dd className="text-right text-[15px] text-ink tabular-nums">
-                      {active[c.key]}
-                      <span className="ml-1.5 text-[11px] text-mute">{c.unit}</span>
-                    </dd>
-                    <div className="col-span-2 mt-3">
-                      <Meter
-                        fraction={(Number(active[c.key]) - (c.min ?? 0)) / (c.max - (c.min ?? 0))}
-                      />
+              {active.source === 'pi' ? (
+                /* Camera unit: show the evidence photo and what the model saw,
+                   instead of the lab telemetry channels it never measures. */
+                <div className="mt-8">
+                  {active.image && (
+                    <img
+                      src={active.image}
+                      alt={`Detection from ${active.vessel}`}
+                      className="w-full rounded-[14px] border border-ink/15"
+                    />
+                  )}
+                  <dl className="mt-6">
+                    <div className="grid grid-cols-[1fr_auto] items-baseline gap-x-5 border-t border-ink/12 pt-3.5 pb-4">
+                      <dt className="text-[12.5px] text-mute">Oil coverage</dt>
+                      <dd className="text-right text-[15px] text-ink tabular-nums">
+                        {((active.oil_coverage ?? 0) * 100).toFixed(1)}
+                        <span className="ml-1.5 text-[11px] text-mute">%</span>
+                      </dd>
                     </div>
-                  </div>
-                ))}
-              </dl>
+                    <div className="grid grid-cols-[1fr_auto] items-baseline gap-x-5 border-t border-ink/12 pt-3.5 pb-4">
+                      <dt className="text-[12.5px] text-mute">Confidence</dt>
+                      <dd className="text-right text-[15px] text-ink tabular-nums">
+                        {((active.confidence ?? 0) * 100).toFixed(0)}
+                        <span className="ml-1.5 text-[11px] text-mute">%</span>
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              ) : (
+                <dl className="mt-8">
+                  {CHANNELS.map((c: Channel) => (
+                    <div
+                      key={c.key}
+                      className="grid grid-cols-[1fr_auto] items-baseline gap-x-5 border-t border-ink/12 pt-3.5 pb-4"
+                    >
+                      <dt className="text-[12.5px] text-mute">{copy.map.fields[c.key]}</dt>
+                      <dd className="text-right text-[15px] text-ink tabular-nums">
+                        {active[c.key]}
+                        <span className="ml-1.5 text-[11px] text-mute">{c.unit}</span>
+                      </dd>
+                      <div className="col-span-2 mt-3">
+                        <Meter
+                          fraction={(Number(active[c.key]) - (c.min ?? 0)) / (c.max - (c.min ?? 0))}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </dl>
+              )}
 
               {/* One action bar rather than two loose buttons: the record's
                   current standing on the left, the only two moves available on

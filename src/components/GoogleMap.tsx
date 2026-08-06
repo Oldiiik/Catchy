@@ -27,6 +27,22 @@ export type Reading = {
   heading: number
   /** Speed over ground, knots. */
   speed: string
+
+  /* ── Optional, present on live detections from the field units ────────── */
+  /** Stable id (used as React key + de-dup). */
+  id?: string
+  /** Full ISO-8601 UTC timestamp (the `time` field is just HH:MM). */
+  iso?: string
+  /** Annotated photo as a data-URI, shown in the detail panel. */
+  image?: string | null
+  /** Fraction of the frame classified as oil (0–1). */
+  oil_coverage?: number
+  /** Mean detector confidence for the oil detections (0–1). */
+  confidence?: number
+  /** Per-type oil coverage breakdown. */
+  coverage_by_type?: Record<string, number>
+  /** Where the reading came from: 'pi' for a camera unit. */
+  source?: string
 }
 
 /** Sample fleet telemetry, offshore of Aktau along the Mangystau coast. */
@@ -130,6 +146,7 @@ type Layer = google.maps.OverlayView & {
 function createLayer(
   onSelect: (i: number) => void,
   points: { current: Projected[] },
+  readings: Reading[],
 ): Layer {
   class ReadingLayer extends google.maps.OverlayView {
     private root = document.createElement('div')
@@ -138,7 +155,7 @@ function createLayer(
     onAdd() {
       this.root.className = 'rdg-layer'
 
-      this.nodes = READINGS.map((r, i) => {
+      this.nodes = readings.map((r, i) => {
         const node = document.createElement('button')
         node.type = 'button'
         node.className = 'rdg'
@@ -162,7 +179,7 @@ function createLayer(
       const projection = this.getProjection()
       if (!projection) return
 
-      READINGS.forEach((r, i) => {
+      readings.forEach((r, i) => {
         const latLng = new google.maps.LatLng(r.lat, r.lng)
 
         // Div pixels position the DOM hit target inside the overlay pane.
@@ -198,13 +215,21 @@ type Props = {
   onSelect: (index: number) => void
   missingKeyLabel: string
   errorLabel: string
+  /** Points to plot. Defaults to the built-in demo readings. */
+  readings?: Reading[]
 }
 
-export default function GoogleMap({ selected, onSelect, missingKeyLabel, errorLabel }: Props) {
+export default function GoogleMap({
+  selected,
+  onSelect,
+  missingKeyLabel,
+  errorLabel,
+  readings = READINGS,
+}: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const layerRef = useRef<Layer | null>(null)
-  const pointsRef = useRef<Projected[]>(READINGS.map(() => ({ x: 0, y: 0, on: false })))
+  const pointsRef = useRef<Projected[]>(readings.map(() => ({ x: 0, y: 0, on: false })))
   const reduced = usePrefersReducedMotion()
   const [status, setStatus] = useState<'loading' | 'ready' | 'nokey' | 'error'>('loading')
 
@@ -240,11 +265,6 @@ export default function GoogleMap({ selected, onSelect, missingKeyLabel, errorLa
           backgroundColor: '#000205',
         })
         mapRef.current = map
-
-        const layer = createLayer(onSelect, pointsRef)
-        layer.setMap(map)
-        layerRef.current = layer
-
         setStatus('ready')
       })
       .catch((e: Error) => {
@@ -261,6 +281,24 @@ export default function GoogleMap({ selected, onSelect, missingKeyLabel, errorLa
     }
   }, [onSelect])
 
+  // Build (and rebuild) the marker layer whenever the map is ready or the
+  // readings change — live detections arrive after the first render, so the
+  // overlay has to be torn down and recreated against the new array.
+  useEffect(() => {
+    if (status !== 'ready' || !mapRef.current) return
+    pointsRef.current = readings.map(() => ({ x: 0, y: 0, on: false }))
+    const layer = createLayer(onSelect, pointsRef, readings)
+    layer.setMap(mapRef.current)
+    layerRef.current = layer
+    layer.setActive(selected)
+    return () => {
+      layer.setMap(null)
+      if (layerRef.current === layer) layerRef.current = null
+    }
+    // `selected` is intentionally omitted; the effect below tracks it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, readings, onSelect])
+
   // Selection is presentation only — the layer owns its own DOM.
   useEffect(() => {
     if (status === 'ready') layerRef.current?.setActive(selected)
@@ -273,7 +311,7 @@ export default function GoogleMap({ selected, onSelect, missingKeyLabel, errorLa
       {status === 'ready' && (
         <Suspense fallback={null}>
           <MapMarkers3D
-            readings={READINGS}
+            readings={readings}
             points={pointsRef}
             selected={selected}
             reduced={reduced}
