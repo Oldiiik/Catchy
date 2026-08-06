@@ -17,14 +17,27 @@ import * as THREE from 'three'
  * Longitude is scaled by cos(42°) so the plan is not stretched east to west.
  */
 const SHORE: [number, number][] = [
-  [47.5, 45.7], [48.2, 46.0], [49.2, 46.1], [50.4, 45.7], [51.6, 45.4],
-  [52.5, 45.1], [53.2, 45.2], [52.4, 44.9], [51.4, 44.6], [52.1, 44.2],
-  [52.9, 43.7], [53.3, 42.9], [53.5, 42.1], [53.7, 41.4], [54.4, 41.2],
-  [54.3, 40.7], [53.7, 40.6], [53.5, 39.9], [53.7, 39.1], [53.8, 38.3],
-  [53.2, 37.7], [52.5, 37.2], [51.5, 36.8], [50.4, 36.7], [49.5, 37.3],
-  [49.2, 37.9], [48.9, 38.6], [48.6, 39.3], [49.1, 39.9], [49.7, 40.2],
-  [50.4, 40.4], [49.7, 40.7], [49.1, 41.3], [48.8, 41.9], [48.3, 42.6],
-  [47.8, 43.4], [47.5, 44.2], [47.2, 44.9], [46.9, 45.4],
+  // North shelf, west to east: the Volga delta across to the Ural mouth.
+  [47.4, 45.6], [47.9, 46.2], [48.6, 46.7], [49.6, 46.6], [50.6, 46.5],
+  [51.7, 46.5], [52.6, 46.2], [53.2, 45.8],
+  // Buzachi, Komsomolets bay, and the Tyub-Karagan cape reaching west.
+  [52.7, 45.3], [52.0, 45.4], [51.4, 45.2], [51.6, 44.8], [52.1, 44.7],
+  [51.3, 44.5], [50.9, 44.3],
+  // The Mangystau coast running south past Aktau to Kara-Bogaz-Gol.
+  [51.0, 43.9], [51.1, 43.5], [51.4, 43.0], [51.9, 42.5], [52.4, 42.0],
+  [52.8, 41.5], [53.1, 41.2], [53.6, 41.3], [53.6, 40.9], [53.1, 40.9],
+  // Turkmen coast down to the south-east corner.
+  [53.0, 40.4], [53.4, 39.8], [53.8, 39.2], [54.0, 38.5], [53.9, 37.8],
+  [53.5, 37.2],
+  // The Iranian shore, east to west.
+  [52.8, 36.9], [52.0, 36.7], [51.2, 36.6], [50.3, 36.7], [49.6, 37.1],
+  [49.2, 37.6],
+  // Up the Azerbaijani coast, over the Apsheron peninsula east of Baku.
+  [48.9, 38.3], [48.9, 38.9], [49.2, 39.4], [49.4, 39.9], [49.9, 40.3],
+  [50.4, 40.4], [49.8, 40.6], [49.3, 41.0], [48.9, 41.5],
+  // Dagestan, back north to the delta.
+  [48.4, 42.1], [47.9, 42.7], [47.5, 43.2], [47.3, 43.9], [47.2, 44.6],
+  [47.3, 45.1],
 ]
 
 const LON_SCALE = Math.cos((42 * Math.PI) / 180)
@@ -54,7 +67,9 @@ function smooth(points: THREE.Vector2[], passes: number) {
 function useSeaGeometry() {
   return useMemo(() => {
     const traced = SHORE.map(([lon, lat]) => new THREE.Vector2(lon * LON_SCALE, lat))
-    const shape = new THREE.Shape(smooth(traced, 3))
+    // Two passes: enough to lose the sampling, not so much that the bays and
+    // the Apsheron cape get rounded off into a blob.
+    const shape = new THREE.Shape(smooth(traced, 2))
 
     const geometry = new THREE.ExtrudeGeometry(shape, {
       depth: 0.5,

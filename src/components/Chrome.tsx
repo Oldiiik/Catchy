@@ -3,19 +3,42 @@ import { Link } from 'react-router'
 import { useActiveSection, usePageProgress, usePrefersReducedMotion } from '../hooks'
 import { LANGS, type Copy, type Lang } from '../copy'
 
+/**
+ * The mark: a C drawn on a four-by-four pixel grid, the way a low-resolution
+ * instrument would render it. On hover the two open cells fill in and the
+ * letter closes — the clip snapping shut on a gunwale.
+ *
+ * Sixteen elements rather than a glyph or a path, so it stays crisp at any
+ * size and animates cell by cell.
+ */
+const MARK = [
+  [0, 1, 1, 1],
+  [1, 0, 0, 0],
+  [1, 0, 0, 0],
+  [0, 1, 1, 1],
+].flat()
+
 export function Wordmark({ className = '' }: { className?: string }) {
   return (
-    <a
-      href="#top"
-      className={`group inline-flex items-center gap-3 text-ink transition-opacity duration-300 hover:opacity-80 ${className}`}
+    <Link
+      to="/"
+      className={`group inline-flex items-center gap-2.5 text-ink transition-opacity duration-300 hover:opacity-90 ${className}`}
     >
-      {/* The same diamond the buoys are modelled from, drawn in one element. */}
-      <span
-        aria-hidden="true"
-        className="block h-2 w-2 rotate-45 border border-ink transition-transform duration-700 ease-[var(--ease-calm)] group-hover:rotate-[135deg]"
-      />
-      <span className="text-[14px] font-medium tracking-[0.05em] uppercase">Catchy</span>
-    </a>
+      <span aria-hidden="true" className="grid grid-cols-4 gap-[2px]">
+        {MARK.map((on, i) => (
+          <span
+            key={i}
+            className={`block h-[3px] w-[3px] transition-colors duration-500 ease-[var(--ease-calm)] ${
+              on ? 'bg-ink' : 'bg-ink/0 group-hover:bg-ink/35'
+            }`}
+            style={{ transitionDelay: `${(i % 4) * 50 + Math.floor(i / 4) * 25}ms` }}
+          />
+        ))}
+      </span>
+      <span className="text-[16px] leading-none font-medium tracking-[-0.03em] lowercase">
+        catchy
+      </span>
+    </Link>
   )
 }
 

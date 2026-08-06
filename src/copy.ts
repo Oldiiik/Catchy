@@ -79,6 +79,19 @@ export type Copy = {
     keyCollar: string
     keySweep: string
   }
+  demo: {
+    badge: string
+    note: string
+    play: string
+    pause: string
+    speed: string
+    spill: string
+    reset: string
+    log: string
+    logEmpty: string
+    logSpill: string
+    hardware: string
+  }
   footer: { tagline: string; office: string; rights: string; links: string[] }
 }
 
@@ -261,6 +274,20 @@ const ru: Copy = {
     keyHeight: 'Высота столбика — уровень углеводородов',
     keyCollar: 'Кольцо — превышение порога',
     keySweep: 'Расходящийся круг — нужна проверка',
+  },
+  demo: {
+    badge: 'Демонстрационный режим',
+    note: 'Оборудование не подключено. Восемь судов идут по своим курсам, пятно дрейфует по течению — показания вычисляются из положения судна относительно нефти.',
+    play: 'Пуск',
+    pause: 'Пауза',
+    speed: 'Скорость',
+    spill: 'Смоделировать разлив',
+    reset: 'Сбросить',
+    log: 'Лента событий',
+    logEmpty: 'Пока без изменений',
+    logSpill: 'В воду добавлено пятно',
+    hardware:
+      'Это симуляция. В полном объёме панель работает только с подключёнными клипсами Catchy на борту судов — здесь их заменяет модель течения и распространения нефти.',
   },
   footer: {
     tagline: 'Мониторинг Каспия',
@@ -451,6 +478,20 @@ const kk: Copy = {
     keyCollar: 'Сақина — шектен асу',
     keySweep: 'Кеңейетін шеңбер — тексеру керек',
   },
+  demo: {
+    badge: 'Демонстрациялық режим',
+    note: 'Жабдық қосылмаған. Сегіз кеме өз бағытымен жүреді, дақ ағыспен жылжиды — көрсеткіштер кеменің мұнайға қатысты орнынан есептеледі.',
+    play: 'Іске қосу',
+    pause: 'Кідірту',
+    speed: 'Жылдамдық',
+    spill: 'Төгілуді модельдеу',
+    reset: 'Қайта бастау',
+    log: 'Оқиғалар лентасы',
+    logEmpty: 'Әзірге өзгеріс жоқ',
+    logSpill: 'Суға дақ қосылды',
+    hardware:
+      'Бұл — симуляция. Панель толық көлемде кемелерге орнатылған Catchy қыстырғыштарымен ғана жұмыс істейді; мұнда олардың орнына ағыс пен мұнайдың таралу моделі тұр.',
+  },
   footer: {
     tagline: 'Каспий мониторингі',
     office: 'Ақтау, Қазақстан',
@@ -631,6 +672,20 @@ const en: Copy = {
     keyHeight: 'Column height is the hydrocarbon level',
     keyCollar: 'A collar marks a reading over threshold',
     keySweep: 'An expanding ring needs a person',
+  },
+  demo: {
+    badge: 'Demonstration mode',
+    note: 'No hardware attached. Eight boats run their own courses and a slick drifts with the current — every reading is computed from where the vessel is relative to the oil.',
+    play: 'Run',
+    pause: 'Pause',
+    speed: 'Speed',
+    spill: 'Simulate a spill',
+    reset: 'Reset',
+    log: 'Event feed',
+    logEmpty: 'Nothing has changed yet',
+    logSpill: 'A slick was added to the water',
+    hardware:
+      'This is a simulation. The dashboard only works in full with Catchy clips physically mounted on the vessels — here a drift and dispersion model stands in for them.',
   },
   footer: {
     tagline: 'Caspian monitoring',

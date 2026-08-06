@@ -27,7 +27,7 @@ function CaspianPlate({ reduced }: { reduced: boolean }) {
           dashed is 2005, solid is today, dimensioned between the two. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-[26%] top-[13%] flex flex-col gap-[7px]"
+        className="pointer-events-none absolute inset-x-[30%] top-[10%] flex flex-col gap-[7px]"
       >
         <span className="block h-px border-t border-dashed border-ink/45" />
         <span className="block h-px bg-ink/45" />

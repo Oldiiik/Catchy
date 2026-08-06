@@ -130,6 +130,9 @@ type Layer = google.maps.OverlayView & {
 function createLayer(
   onSelect: (i: number) => void,
   points: { current: Projected[] },
+  // A ref, not a value: the fleet moves every half second and the layer must
+  // draw wherever the boats are now, without being torn down and rebuilt.
+  readings: { current: Reading[] },
 ): Layer {
   class ReadingLayer extends google.maps.OverlayView {
     private root = document.createElement('div')
@@ -138,7 +141,7 @@ function createLayer(
     onAdd() {
       this.root.className = 'rdg-layer'
 
-      this.nodes = READINGS.map((r, i) => {
+      this.nodes = readings.current.map((r, i) => {
         const node = document.createElement('button')
         node.type = 'button'
         node.className = 'rdg'
@@ -162,15 +165,22 @@ function createLayer(
       const projection = this.getProjection()
       if (!projection) return
 
-      READINGS.forEach((r, i) => {
+      readings.current.forEach((r, i) => {
+        const node = this.nodes[i]
+        if (!node) return
         const latLng = new google.maps.LatLng(r.lat, r.lng)
 
         // Div pixels position the DOM hit target inside the overlay pane.
         const d = projection.fromLatLngToDivPixel(latLng)
         if (d) {
-          this.nodes[i].style.left = `${d.x}px`
-          this.nodes[i].style.top = `${d.y}px`
+          node.style.left = `${d.x}px`
+          node.style.top = `${d.y}px`
         }
+
+        node.dataset.kind = r.kind
+        node.setAttribute('aria-label', `${r.vessel}, ${r.ppm} ppm`)
+        const chip = node.firstElementChild
+        if (chip) chip.innerHTML = `<b>${r.ppm}</b> ppm`
 
         // Container pixels are what the canvas above the map needs.
         const c = projection.fromLatLngToContainerPixel(latLng)
@@ -198,13 +208,23 @@ type Props = {
   onSelect: (index: number) => void
   missingKeyLabel: string
   errorLabel: string
+  /** Live fleet state. Defaults to the static sample the landing page shows. */
+  readings?: Reading[]
 }
 
-export default function GoogleMap({ selected, onSelect, missingKeyLabel, errorLabel }: Props) {
+export default function GoogleMap({
+  selected,
+  onSelect,
+  missingKeyLabel,
+  errorLabel,
+  readings = READINGS,
+}: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const layerRef = useRef<Layer | null>(null)
-  const pointsRef = useRef<Projected[]>(READINGS.map(() => ({ x: 0, y: 0, on: false })))
+  const pointsRef = useRef<Projected[]>(readings.map(() => ({ x: 0, y: 0, on: false })))
+  const readingsRef = useRef(readings)
+  readingsRef.current = readings
   const reduced = usePrefersReducedMotion()
   const [status, setStatus] = useState<'loading' | 'ready' | 'nokey' | 'error'>('loading')
 
@@ -241,7 +261,7 @@ export default function GoogleMap({ selected, onSelect, missingKeyLabel, errorLa
         })
         mapRef.current = map
 
-        const layer = createLayer(onSelect, pointsRef)
+        const layer = createLayer(onSelect, pointsRef, readingsRef)
         layer.setMap(map)
         layerRef.current = layer
 
@@ -266,6 +286,11 @@ export default function GoogleMap({ selected, onSelect, missingKeyLabel, errorLa
     if (status === 'ready') layerRef.current?.setActive(selected)
   }, [selected, status])
 
+  // The boats moved: reproject without touching the map itself.
+  useEffect(() => {
+    if (status === 'ready') layerRef.current?.draw()
+  }, [readings, status])
+
   return (
     <div className="relative aspect-[16/11] w-full overflow-hidden bg-oil">
       <div ref={hostRef} className="absolute inset-0" />
@@ -273,7 +298,7 @@ export default function GoogleMap({ selected, onSelect, missingKeyLabel, errorLa
       {status === 'ready' && (
         <Suspense fallback={null}>
           <MapMarkers3D
-            readings={READINGS}
+            readings={readings}
             points={pointsRef}
             selected={selected}
             reduced={reduced}
