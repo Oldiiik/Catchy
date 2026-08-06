@@ -1,0 +1,10 @@
+{
+  "description": "Provides a calm, premium landing page showcasing a Caspian Sea oil-spill detection system with sensor tech, AI analysis, and government access.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

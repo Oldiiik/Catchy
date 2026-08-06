@@ -1,0 +1,194 @@
+@import url('https://fonts.googleapis.com/css2?family=Golos+Text:wght@400..700&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-sans:
+    'Golos Text', 'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Two colours: oil and water. The middle step is not a third hue, it is the
+     rung that makes the ladder from black to blue read evenly. Without it both
+     surfaces sit in the same tonal band and the page looks flat. */
+  --color-oil: #000205;
+  --color-abyss: #03081a;
+  --color-water: #0a1c4a;
+
+  /* Type is drawn from the same blue axis, never a neutral grey. */
+  --color-ink: #eef2fa;
+  --color-mute: #7e91b8;
+
+  --radius-card: 24px;
+}
+
+:root {
+  color-scheme: dark;
+  --ease-calm: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: #000205;
+  color: #eef2fa;
+  font-family: var(--font-sans);
+  font-synthesis-weight: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: #0a1c4a;
+  color: #eef2fa;
+}
+
+:focus-visible {
+  outline: 1px solid #eef2fa;
+  outline-offset: 4px;
+  border-radius: 999px;
+}
+
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* The gooey threshold: flat circles blurred then crushed by contrast, so
+   droplets merge and part with hard edges instead of soft haloes. */
+.fluid-threshold {
+  filter: blur(12px) contrast(32);
+}
+
+.reveal {
+  opacity: 0;
+  transform: translate3d(0, 26px, 0);
+  transition:
+    opacity 620ms var(--ease-calm),
+    transform 620ms var(--ease-calm);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+.reveal[data-shown='true'] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+/* Hairline that draws itself in when its section arrives. */
+.rule {
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 900ms var(--ease-calm);
+}
+.reveal[data-shown='true'] .rule,
+.rule[data-shown='true'] {
+  transform: scaleX(1);
+}
+
+/* ── Map readings ─────────────────────────────────────────────────────────
+   The markers themselves are modelled in three.js on a canvas above the map.
+   What remains here is the invisible hit target that makes each reading
+   clickable and focusable, plus the value label that rides alongside it. */
+
+.rdg-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.rdg {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 0;
+  height: 0;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+/* Hit area. The mesh is a hull with a column standing out of it, so the
+   target is a tall capsule covering both, not a disc over the base. */
+.rdg::before {
+  content: '';
+  grid-area: 1 / 1;
+  width: 46px;
+  height: 96px;
+  transform: translateY(-26px);
+  border-radius: 23px;
+}
+
+.rdg-chip {
+  grid-area: 1 / 1;
+  /* Rides beside the top of the column, where the value is being read. */
+  transform: translate(calc(50% + 16px), -58px);
+  white-space: nowrap;
+  padding: 3px 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--color-ink);
+  background: color-mix(in srgb, var(--color-oil) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-ink) 22%, transparent);
+  border-radius: 3px;
+  backdrop-filter: blur(6px);
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transform-origin: left center;
+  transition: opacity 320ms var(--ease-calm);
+  pointer-events: none;
+}
+.rdg-chip b {
+  font-weight: 600;
+}
+.rdg[data-on='true'] .rdg-chip {
+  opacity: 1;
+}
+
+/* One of 184 hundred-tonne marks. They rise left to right, so the quantity is
+   counted out rather than simply appearing. */
+.tick {
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform 700ms var(--ease-calm);
+}
+.reveal[data-shown='true'] .tick {
+  transform: scaleY(1);
+}
+
+/* The instrument readout switches channels; it should not cross-fade in place. */
+.readout {
+  animation: readout 460ms var(--ease-calm) both;
+}
+@keyframes readout {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .tick {
+    transform: none;
+    transition: none;
+  }
+  .reveal,
+  .rule {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
