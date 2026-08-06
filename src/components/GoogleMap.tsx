@@ -1,11 +1,13 @@
 /// <reference types="google.maps" />
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import Model from './Model'
 import { projectId, publicAnonKey } from '../../utils/supabase/info'
 import { usePrefersReducedMotion } from '../hooks'
+import { lazyRetry } from '../lazyRetry'
 import type { Projected } from './MapMarkers3D'
 
 // Shares the three.js chunk with the sensor model; both live below the fold.
-const MapMarkers3D = lazy(() => import('./MapMarkers3D'))
+const MapMarkers3D = lazyRetry(() => import('./MapMarkers3D'))
 
 export type Reading = {
   lat: number
@@ -102,10 +104,17 @@ function loadMaps(key: string): Promise<void> {
   if (loader) return loader
   loader = new Promise((resolve, reject) => {
     if (typeof google !== 'undefined' && google.maps) return resolve()
+    // `loading=async` is what Google asks for: it lets the API bootstrap off
+    // the main thread. It also means the load event no longer guarantees the
+    // libraries are ready, so readiness comes from the callback instead.
+    const ready = '__catchyMapsReady'
+    ;(window as unknown as Record<string, () => void>)[ready] = () => resolve()
+
     const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly`
+    script.src =
+      `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}` +
+      `&v=weekly&loading=async&callback=${ready}`
     script.async = true
-    script.onload = () => resolve()
     script.onerror = () => reject(new Error('maps-failed'))
     document.head.appendChild(script)
   })
@@ -296,14 +305,14 @@ export default function GoogleMap({
       <div ref={hostRef} className="absolute inset-0" />
 
       {status === 'ready' && (
-        <Suspense fallback={null}>
+        <Model>
           <MapMarkers3D
             readings={readings}
             points={pointsRef}
             selected={selected}
             reduced={reduced}
           />
-        </Suspense>
+        </Model>
       )}
 
       {status !== 'ready' && (

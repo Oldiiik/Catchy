@@ -42,12 +42,17 @@ function Fluid({ field, drop, density = 3.4, repel = 150, className = '' }: Flui
     const ctx = canvas.getContext('2d', { alpha: false })
     if (!ctx) return
 
-    // Half resolution: the blur pass hides it and halves the fill cost.
-    const SCALE = 0.5
+    // One canvas pixel per device pixel, so the bitmap is never upscaled before
+    // the threshold runs. This was a flat 0.5 in CSS pixels — a quarter of a
+    // retina panel's resolution — and a hard threshold does not forgive a
+    // stretched source: it sharpens the stair-steps instead of hiding them.
+    const SCALE = Math.min(window.devicePixelRatio || 1, 2)
     const BLEED = 90
 
     let w = 0
     let h = 0
+    let prevW = 0
+    let prevH = 0
     let blobs: Blob[] = []
     let frame = 0
     let onScreen = true
@@ -65,23 +70,56 @@ function Fluid({ field, drop, density = 3.4, repel = 150, className = '' }: Flui
       life: 1,
     })
 
+    /**
+     * Re-fit the surface without emptying it. A resize used to re-randomise
+     * every droplet, so on a phone the fluid visibly teleported the moment the
+     * URL bar slid away and changed the viewport height. Existing droplets are
+     * carried across at their relative positions and the population is only
+     * topped up or trimmed to match the new area.
+     */
     const resize = () => {
       const rect = host.getBoundingClientRect()
-      w = rect.width + BLEED * 2
-      h = rect.height + BLEED * 2
+      const nextW = rect.width + BLEED * 2
+      const nextH = rect.height + BLEED * 2
+
+      // Sub-pixel jitter from the observer is not a resize.
+      if (Math.abs(nextW - prevW) < 1 && Math.abs(nextH - prevH) < 1) return
+
+      const first = prevW === 0 || prevH === 0
+      if (!first) {
+        const sx = nextW / prevW
+        const sy = nextH / prevH
+        for (const b of blobs) {
+          b.x *= sx
+          b.y *= sy
+        }
+      }
+
+      w = nextW
+      h = nextH
+      prevW = nextW
+      prevH = nextH
       canvas.width = Math.max(1, Math.round(w * SCALE))
       canvas.height = Math.max(1, Math.round(h * SCALE))
       ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0)
 
       const area = (rect.width * rect.height) / 100000
       const count = Math.round(Math.min(26, Math.max(6, area * density)))
-      blobs = Array.from({ length: count }, () =>
-        spawn(
+      while (blobs.length > count) blobs.pop()
+      while (blobs.length < count) {
+        const b = spawn(
           BLEED + Math.random() * rect.width,
           BLEED + Math.random() * rect.height,
           26 + Math.random() * 58,
-        ),
-      )
+        )
+        // New arrivals grow in rather than popping into existence.
+        if (!first) b.life = 0.1
+        blobs.push(b)
+      }
+
+      // Setting canvas.width cleared the bitmap; with motion off nothing will
+      // redraw it on its own.
+      if (reduced) draw(performance.now())
     }
 
     const draw = (now: number) => {
@@ -130,7 +168,7 @@ function Fluid({ field, drop, density = 3.4, repel = 150, className = '' }: Flui
         ctx.fill()
       }
 
-      frame = onScreen ? requestAnimationFrame(draw) : 0
+      frame = onScreen && !reduced ? requestAnimationFrame(draw) : 0
     }
 
     const toLocal = (clientX: number, clientY: number) => {
@@ -169,8 +207,6 @@ function Fluid({ field, drop, density = 3.4, repel = 150, className = '' }: Flui
 
     if (reduced) {
       draw(performance.now())
-      if (frame) cancelAnimationFrame(frame)
-      frame = 0
     } else {
       frame = requestAnimationFrame(draw)
       window.addEventListener('pointermove', onMove, { passive: true })

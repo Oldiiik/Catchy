@@ -1,11 +1,13 @@
-import { lazy, Suspense, useState } from 'react'
+import { useState } from 'react'
+import Model from './Model'
 import Reveal from './Reveal'
 import { Eyebrow, SHELL, Stat } from './ui'
 import { usePrefersReducedMotion, useScrollProgress } from '../hooks'
+import { lazyRetry } from '../lazyRetry'
+import type { Copy } from '../copy'
 
 // three.js arrives with the section, not with the page.
-const CaspianSea3D = lazy(() => import('./CaspianSea3D'))
-import type { Copy } from '../copy'
+const CaspianSea3D = lazyRetry(() => import('./CaspianSea3D'))
 
 /* ── 01. Why it matters ───────────────────────────────────────────────────
    The figures hang off a schematic of the sea rather than sitting in a row
@@ -19,9 +21,9 @@ import type { Copy } from '../copy'
 function CaspianPlate({ reduced }: { reduced: boolean }) {
   return (
     <div className="relative h-full w-full">
-      <Suspense fallback={<div className="h-full w-full" aria-hidden="true" />}>
+      <Model fallback={<div className="h-full w-full" aria-hidden="true" />}>
         <CaspianSea3D reduced={reduced} />
-      </Suspense>
+      </Model>
 
       {/* Level datum, drawn across the north shelf where the water is going:
           dashed is 2005, solid is today, dimensioned between the two. */}

@@ -40,15 +40,21 @@ export default function Hero({ copy }: { copy: Copy }) {
   })
 
   return (
-    <section id="top" className="relative isolate min-h-[100dvh] overflow-hidden bg-water">
+    <section id="top" className="relative isolate min-h-[100svh] overflow-hidden bg-water">
       <div
         className="pointer-events-none absolute inset-x-0 -top-[8%] h-[116%]"
-        style={{ transform: `translate3d(0, ${offset}px, 0)` }}
+        style={{
+          transform: `translate3d(0, ${offset}px, 0)`,
+          // Promote once, up front. Without it the browser re-rasterises the
+          // blend-and-filter stack underneath on every parallax frame, which
+          // reads as flickering as soon as you start scrolling.
+          willChange: 'transform',
+        }}
       >
         <Fluid field="#0a1c4a" drop="#000205" density={3.2} repel={170} className="h-full w-full" />
       </div>
 
-      <div className="pointer-events-none relative mx-auto grid min-h-[100dvh] max-w-[1180px] grid-cols-1 items-center px-6 pt-28 pb-24 lg:grid-cols-12 lg:px-10">
+      <div className="pointer-events-none relative mx-auto grid min-h-[100svh] max-w-[1180px] grid-cols-1 items-center px-6 pt-28 pb-24 lg:grid-cols-12 lg:px-10">
         <div className="lg:col-span-8 xl:col-span-7">
           <p
             className="mb-7 text-[12px] font-medium tracking-[0.22em] text-mute uppercase"

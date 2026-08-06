@@ -1,13 +1,15 @@
-import { lazy, Suspense, useCallback, useState } from 'react'
-import Reveal from './Reveal'
-
-// three.js is a third of the bundle — it arrives only when this section does.
-const Clip3D = lazy(() => import('./Clip3D'))
+import { useCallback, useState } from 'react'
 import GoogleMap, { READINGS } from './GoogleMap'
 import { ClipMark, LensMark, PinMark } from './Marks'
+import Model from './Model'
+import Reveal from './Reveal'
 import { Eyebrow, Meter, SHELL, Stat, StateGlyph } from './ui'
 import { useMagnetic, usePrefersReducedMotion } from '../hooks'
+import { lazyRetry } from '../lazyRetry'
 import type { Copy } from '../copy'
+
+// three.js is a third of the bundle — it arrives only when this section does.
+const Clip3D = lazyRetry(() => import('./Clip3D'))
 
 /* ── 2. Problem statement ─────────────────────────────────────────────── */
 
@@ -141,9 +143,9 @@ export function Product({ copy }: { copy: Copy }) {
     <section id="sensor" className="scroll-mt-20 py-24 md:py-32">
       <div className={`${SHELL} grid items-center gap-12 lg:grid-cols-12 lg:gap-14`}>
         <Reveal className="order-2 h-[380px] lg:order-1 lg:col-span-6 lg:h-[460px]">
-          <Suspense fallback={<div className="h-full w-full" aria-hidden="true" />}>
+          <Model fallback={<div className="h-full w-full" aria-hidden="true" />}>
             <Clip3D />
-          </Suspense>
+          </Model>
         </Reveal>
 
         <div className="order-1 lg:order-2 lg:col-span-5 lg:col-start-8">

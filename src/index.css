@@ -59,8 +59,17 @@ body {
 
 /* The gooey threshold: flat circles blurred then crushed by contrast, so
    droplets merge and part with hard edges instead of soft haloes. */
+/* Blur then crush: the threshold that gives the droplets hard edges.
+
+   Both numbers are kept deliberately low. Browsers approximate a large CSS
+   blur with box passes over a downsampled buffer, so a wide radius arrives
+   already coarse — and contrast is an amplifier that turns those coarse
+   samples into visibly blocky edges. Edge sharpness is roughly radius over
+   contrast, so shrinking both together holds the same hard edge with far less
+   to magnify. No compositor hints here either: promoting a filtered layer
+   invites the browser to rasterise it below device resolution. */
 .fluid-threshold {
-  filter: blur(12px) contrast(32);
+  filter: blur(9px) contrast(18);
 }
 
 .reveal {
