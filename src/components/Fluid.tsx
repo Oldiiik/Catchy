@@ -39,16 +39,30 @@ function Fluid({ field, drop, density = 3.4, repel = 150, className = '' }: Flui
     const host = hostRef.current
     const canvas = canvasRef.current
     if (!host || !canvas) return
-    const ctx = canvas.getContext('2d', { alpha: false })
+    // Transparent rather than opaque on purpose. Every frame paints its own
+    // white ground, so the alpha channel costs nothing visually — but it means
+    // an emptied bitmap falls back to the element's white CSS background, and
+    // white under `multiply` is a no-op. The worst case is the fluid missing,
+    // not the entire hero crushed to black.
+    const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     // One canvas pixel per device pixel, so the bitmap is never upscaled before
     // the threshold runs. This was a flat 0.5 in CSS pixels — a quarter of a
     // retina panel's resolution — and a hard threshold does not forgive a
     // stretched source: it sharpens the stair-steps instead of hiding them.
-    const SCALE = Math.min(window.devicePixelRatio || 1, 2)
+    const DPR = Math.min(window.devicePixelRatio || 1, 2)
+
+    // ...but not unbounded. A full-screen hero on a 2x display asks for a
+    // backing store north of 40MB, and the browser will quietly throw it away
+    // under memory pressure. Since the canvas is composited with `multiply`, a
+    // discarded bitmap does not degrade the effect — it multiplies the entire
+    // hero to black. Staying inside a budget is what keeps it on screen.
+    const MAX_PIXELS = 4_000_000
+
     const BLEED = 90
 
+    let scale = DPR
     let w = 0
     let h = 0
     let prevW = 0
@@ -99,9 +113,11 @@ function Fluid({ field, drop, density = 3.4, repel = 150, className = '' }: Flui
       h = nextH
       prevW = nextW
       prevH = nextH
-      canvas.width = Math.max(1, Math.round(w * SCALE))
-      canvas.height = Math.max(1, Math.round(h * SCALE))
-      ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0)
+      // Trade resolution for a backing store the browser will keep.
+      scale = Math.max(0.75, Math.min(DPR, Math.sqrt(MAX_PIXELS / (w * h))))
+      canvas.width = Math.max(1, Math.round(w * scale))
+      canvas.height = Math.max(1, Math.round(h * scale))
+      ctx.setTransform(scale, 0, 0, scale, 0, 0)
 
       const area = (rect.width * rect.height) / 100000
       const count = Math.round(Math.min(26, Math.max(6, area * density)))
@@ -117,9 +133,18 @@ function Fluid({ field, drop, density = 3.4, repel = 150, className = '' }: Flui
         blobs.push(b)
       }
 
-      // Setting canvas.width cleared the bitmap; with motion off nothing will
-      // redraw it on its own.
-      if (reduced) draw(performance.now())
+      // Setting canvas.width cleared the bitmap, and an empty canvas under a
+      // `multiply` blend is not "no droplets", it is a black hero. Repaint now
+      // rather than waiting on a loop that may be parked because the section
+      // happens to be scrolled out of view.
+      render()
+    }
+
+    /** Paint one frame immediately, without ever leaving two loops running. */
+    const render = () => {
+      if (frame) cancelAnimationFrame(frame)
+      frame = 0
+      draw(performance.now())
     }
 
     const draw = (now: number) => {
@@ -195,20 +220,40 @@ function Fluid({ field, drop, density = 3.4, repel = 150, className = '' }: Flui
       }
     }
 
-    const visibility = new IntersectionObserver((entries) => {
-      onScreen = entries[0].isIntersecting
-      if (onScreen && !frame && !reduced) frame = requestAnimationFrame(draw)
-    })
+    // A generous margin: the loop keeps running for a screen either side of the
+    // hero, so coming back to the top finds a surface that has been painted all
+    // along rather than one waiting on an observer callback to wake it.
+    const visibility = new IntersectionObserver(
+      (entries) => {
+        onScreen = entries[0].isIntersecting
+        if (onScreen && !frame && !reduced) frame = requestAnimationFrame(draw)
+      },
+      { rootMargin: '100% 0px' },
+    )
     visibility.observe(host)
+
+    // The browser may reclaim a 2d backing store under memory pressure. It hands
+    // back a blank one, which `multiply` renders as a black hero, so redraw the
+    // moment it comes back.
+    const onRestored = () => {
+      prevW = 0
+      prevH = 0
+      resize()
+    }
+    // Restoring a backgrounded tab can present the same emptied bitmap.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') render()
+    }
+
+    canvas.addEventListener('contextrestored', onRestored)
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('pageshow', onVisible)
 
     const ro = new ResizeObserver(resize)
     ro.observe(host)
     resize()
 
-    if (reduced) {
-      draw(performance.now())
-    } else {
-      frame = requestAnimationFrame(draw)
+    if (!reduced) {
       window.addEventListener('pointermove', onMove, { passive: true })
       window.addEventListener('pointerdown', onDown, { passive: true })
       window.addEventListener('pointerleave', onLeave)
@@ -217,6 +262,9 @@ function Fluid({ field, drop, density = 3.4, repel = 150, className = '' }: Flui
     return () => {
       visibility.disconnect()
       ro.disconnect()
+      canvas.removeEventListener('contextrestored', onRestored)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('pageshow', onVisible)
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerdown', onDown)
       window.removeEventListener('pointerleave', onLeave)
@@ -235,7 +283,7 @@ function Fluid({ field, drop, density = 3.4, repel = 150, className = '' }: Flui
       <canvas
         ref={canvasRef}
         className="fluid-threshold absolute -inset-[90px] h-[calc(100%+180px)] w-[calc(100%+180px)]"
-        style={{ mixBlendMode: 'multiply' }}
+        style={{ mixBlendMode: 'multiply', backgroundColor: '#ffffff' }}
       />
       {/* lighten raises that black to the droplet colour, field untouched */}
       <div
