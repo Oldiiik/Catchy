@@ -1,7 +1,13 @@
 {
-  "name": "figma-make-app",
+  "name": "catchy",
   "private": true,
   "version": "1.0.0",
+  "description": "Sensor network for real-time oil-spill detection on the Caspian Sea — Caspian Hackathon 2026 MVP.",
+  "homepage": "https://catchy-eta.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Oldiiik/Catchy.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
