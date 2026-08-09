@@ -8,6 +8,7 @@ import { CHANNELS, type Channel } from '../components/Sections'
 import { Meter, Stat, StateGlyph } from '../components/ui'
 import { CEILING, THRESHOLD, formatClock, type Bucket, type LogEntry, type Sim } from '../fleet'
 import { SPEEDS, useSim } from '../useSim'
+import { useDetections } from '../useDetections'
 import type { Copy } from '../copy'
 
 /* ── Operations ───────────────────────────────────────────────────────────
@@ -291,7 +292,11 @@ function Feed({ copy, log }: { copy: Copy; log: LogEntry[] }) {
 export default function Dashboard() {
   const { lang, copy, setLang } = useLang()
   const { sim, playing, setPlaying, speed, setSpeed, inject, reset } = useSim()
-  const readings: Reading[] = sim.readings
+  // Real detections from the camera units (local server / edge function) are
+  // merged in after the simulated fleet, so the boats stay on the map and each
+  // live detection shows up as its own marker + queue row (with a photo).
+  const live = useDetections()
+  const readings: Reading[] = useMemo(() => [...sim.readings, ...live], [sim.readings, live])
 
   const [picked, setPicked] = useState(4)
   const [range, setRange] = useState(0)
@@ -349,6 +354,12 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-5">
             <LangSwitch value={lang} onChange={setLang} />
+            <Link
+              to="/live"
+              className="rounded-full border border-ink/25 px-4 py-1.5 text-[11.5px] tracking-[0.12em] text-ink uppercase transition-colors duration-500 ease-[var(--ease-calm)] hover:border-ink hover:bg-ink hover:text-oil"
+            >
+              Реальные детекции
+            </Link>
             <Link
               to="/"
               className="rounded-full border border-ink/25 px-4 py-1.5 text-[11.5px] tracking-[0.12em] text-ink uppercase transition-colors duration-500 ease-[var(--ease-calm)] hover:border-ink hover:bg-ink hover:text-oil"
@@ -543,39 +554,79 @@ export default function Dashboard() {
                 {String(active.heading).padStart(3, '0')}° · {active.speed} kn
               </p>
 
-              <p className="mt-8 flex items-baseline justify-between gap-4 text-[11px] tracking-[0.18em] text-mute uppercase">
-                {copy.map.fields.level}
-                <span className="tracking-[0.04em] text-mute/60 normal-case">
-                  {copy.dash.threshold}
-                </span>
-              </p>
-              <p className="mt-2.5 text-[clamp(2.2rem,4vw,2.9rem)] leading-none font-medium tracking-[-0.05em] text-ink tabular-nums">
-                {active.ppm}
-                <span className="ml-3 align-baseline text-[0.26em] font-normal tracking-[0.04em] text-mute">
-                  ppm
-                </span>
-              </p>
-              <Meter fraction={Number(active.ppm) / CEILING} threshold={THRESHOLD / CEILING} tall />
-
-              <dl className="mt-8">
-                {CHANNELS.map((c: Channel) => (
-                  <div
-                    key={c.key}
-                    className="grid grid-cols-[1fr_auto] items-baseline gap-x-5 border-t border-ink/12 pt-3.5 pb-4"
-                  >
-                    <dt className="text-[12.5px] text-mute">{copy.map.fields[c.key]}</dt>
-                    <dd className="text-right text-[15px] text-ink tabular-nums">
-                      {active[c.key]}
-                      <span className="ml-1.5 text-[11px] text-mute">{c.unit}</span>
-                    </dd>
-                    <div className="col-span-2 mt-3">
-                      <Meter
-                        fraction={(Number(active[c.key]) - (c.min ?? 0)) / (c.max - (c.min ?? 0))}
-                      />
+              {active.source === 'pi' ? (
+                /* ── Live camera detection: photo + coverage + confidence ── */
+                <>
+                  {active.image && (
+                    <img
+                      src={active.image}
+                      alt="Oil detection"
+                      className="mt-6 w-full rounded-[14px] ring-1 ring-ink/15"
+                    />
+                  )}
+                  <p className="mt-4 text-[12px] leading-[1.6] text-mute/70">
+                    Outlined regions in the photo are what the model classified as oil.
+                  </p>
+                  <dl className="mt-5">
+                    <div className="grid grid-cols-[1fr_auto] items-baseline gap-x-5 border-t border-ink/12 pt-3.5 pb-4">
+                      <dt className="text-[12.5px] text-mute">Oil coverage</dt>
+                      <dd className="text-right text-[15px] text-ink tabular-nums">
+                        {((active.oil_coverage ?? 0) * 100).toFixed(1)}
+                        <span className="ml-1.5 text-[11px] text-mute">%</span>
+                      </dd>
+                      <div className="col-span-2 mt-3">
+                        <Meter fraction={active.oil_coverage ?? 0} />
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </dl>
+                    <div className="grid grid-cols-[1fr_auto] items-baseline gap-x-5 border-t border-ink/12 pt-3.5 pb-4">
+                      <dt className="text-[12.5px] text-mute">Confidence</dt>
+                      <dd className="text-right text-[15px] text-ink tabular-nums">
+                        {((active.confidence ?? 0) * 100).toFixed(0)}
+                        <span className="ml-1.5 text-[11px] text-mute">%</span>
+                      </dd>
+                      <div className="col-span-2 mt-3">
+                        <Meter fraction={active.confidence ?? 0} />
+                      </div>
+                    </div>
+                  </dl>
+                </>
+              ) : (
+                <>
+                  <p className="mt-8 flex items-baseline justify-between gap-4 text-[11px] tracking-[0.18em] text-mute uppercase">
+                    {copy.map.fields.level}
+                    <span className="tracking-[0.04em] text-mute/60 normal-case">
+                      {copy.dash.threshold}
+                    </span>
+                  </p>
+                  <p className="mt-2.5 text-[clamp(2.2rem,4vw,2.9rem)] leading-none font-medium tracking-[-0.05em] text-ink tabular-nums">
+                    {active.ppm}
+                    <span className="ml-3 align-baseline text-[0.26em] font-normal tracking-[0.04em] text-mute">
+                      ppm
+                    </span>
+                  </p>
+                  <Meter fraction={Number(active.ppm) / CEILING} threshold={THRESHOLD / CEILING} tall />
+
+                  <dl className="mt-8">
+                    {CHANNELS.map((c: Channel) => (
+                      <div
+                        key={c.key}
+                        className="grid grid-cols-[1fr_auto] items-baseline gap-x-5 border-t border-ink/12 pt-3.5 pb-4"
+                      >
+                        <dt className="text-[12.5px] text-mute">{copy.map.fields[c.key]}</dt>
+                        <dd className="text-right text-[15px] text-ink tabular-nums">
+                          {active[c.key]}
+                          <span className="ml-1.5 text-[11px] text-mute">{c.unit}</span>
+                        </dd>
+                        <div className="col-span-2 mt-3">
+                          <Meter
+                            fraction={(Number(active[c.key]) - (c.min ?? 0)) / (c.max - (c.min ?? 0))}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </dl>
+                </>
+              )}
 
               {/* One action bar rather than two loose buttons: the record's
                   current standing on the left, the only two moves available on
