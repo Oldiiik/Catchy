@@ -6,6 +6,19 @@ import GoogleMap, { type Reading } from '../components/GoogleMap'
 import { Meter, Stat, StateGlyph } from '../components/ui'
 import { useDetections } from '../useDetections'
 
+/** Display an ISO-8601 UTC timestamp in Astana / Kazakhstan time (UTC+5).
+    The stored `iso` stays UTC; we only convert for display, falling back to
+    the raw HH:MM `time` field when no `iso` is present. */
+const astanaTime = (iso?: string, fallback = '—') =>
+  iso
+    ? new Intl.DateTimeFormat('ru-RU', {
+        timeZone: 'Asia/Almaty',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(new Date(iso))
+    : fallback
+
 /* ── Live detections ────────────────────────────────────────────────────────
    The same surface as the operational dashboard, but with NO simulation: only
    real detections streamed from the field units (camera → local server / edge
@@ -36,7 +49,9 @@ export default function Live() {
   }, [])
 
   const flagged = detections.filter((d) => d.kind === 'review').length
-  const latest = detections.length ? detections[detections.length - 1].time : '—'
+  const latest = detections.length
+    ? astanaTime(detections[detections.length - 1].iso, detections[detections.length - 1].time)
+    : '—'
 
   return (
     <div className="min-h-[100dvh]">
@@ -145,6 +160,16 @@ export default function Live() {
                             style={{ transform: on ? 'scaleY(1)' : 'scaleY(0)' }}
                           />
                           <StateGlyph kind={r.kind} />
+                          {r.image ? (
+                            <img
+                              src={r.image}
+                              alt=""
+                              loading="lazy"
+                              className="h-10 w-14 shrink-0 rounded-lg object-cover ring-1 ring-ink/15"
+                            />
+                          ) : (
+                            <span className="h-10 w-14 shrink-0 rounded-lg bg-ink/10 ring-1 ring-ink/10" />
+                          )}
                           <span className="min-w-0 flex-1">
                             <span className="flex items-baseline justify-between gap-3">
                               <span
@@ -163,7 +188,7 @@ export default function Live() {
                             </span>
                           </span>
                           <span className="shrink-0 text-[11px] text-mute/70 tabular-nums">
-                            {r.time}
+                            {astanaTime(r.iso, r.time)}
                           </span>
                         </button>
                       </li>
@@ -182,7 +207,7 @@ export default function Live() {
                   <span className="text-[19px] font-medium tracking-[-0.02em] text-ink">
                     {active.vessel}
                   </span>
-                  <span className="text-[12px] text-mute tabular-nums">{active.time}</span>
+                  <span className="text-[12px] text-mute tabular-nums">{astanaTime(active.iso, active.time)}</span>
                 </p>
                 <p className="mt-2 text-[12px] text-mute/70 tabular-nums">
                   {active.lat.toFixed(4)}° N {active.lng.toFixed(4)}° E

@@ -59,7 +59,7 @@ export const READINGS: Reading[] = [
   { lat: 43.5231, lng: 51.0405, kind: 'clear', vessel: 'Ерсай 03', time: '12:44', ppm: '0.3', film: '0.00', fluor: '11', turb: '20', temp: '22.6', heading: 271, speed: '6.9' },
 ]
 
-const AKTAU: L.LatLngTuple = [43.6215, 51.098]
+const AKTAU: L.LatLngTuple = [43.641, 51.1533]
 
 const KIND_COLOR: Record<Reading['kind'], string> = {
   clear: '#5f739c',
