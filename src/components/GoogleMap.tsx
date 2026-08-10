@@ -67,6 +67,48 @@ const KIND_COLOR: Record<Reading['kind'], string> = {
   review: '#ff4d4d',
 }
 
+/* ── Marker badges ─────────────────────────────────────────────────────────
+   A round beacon rather than a flat dot: an ink disc, a ring in the reading's
+   state colour, and a small glyph — a hull for a clear vessel, a droplet for
+   a sheen, a droplet with a mark for one that needs review. Live camera
+   detections swap in a shutter glyph so they read as "a photo was taken"
+   rather than "a boat is here". */
+
+const HULL_PATH =
+  'M4 15.5 12 18l8-2.5-1.6-5.7a2 2 0 0 0-1.9-1.5H9.9L8 6H5.6L4.2 9.8H3a1 1 0 0 0-.9 1.4Z'
+const DROPLET_PATH = 'M12 4c3 4 6 7.6 6 11a6 6 0 1 1-12 0c0-3.4 3-7 6-11Z'
+const SHUTTER_PATH =
+  'M12 3 9.4 9H3l4.9 4-1.9 7L12 16l6 4-1.9-7L21 9h-6.4Z'
+
+function glyphFor(kind: Reading['kind'], isLive: boolean) {
+  if (isLive) return SHUTTER_PATH
+  return kind === 'clear' ? HULL_PATH : DROPLET_PATH
+}
+
+function pinIcon(reading: Reading, selected: boolean) {
+  const isLive = reading.source === 'pi'
+  const color = KIND_COLOR[reading.kind] ?? '#5f739c'
+  const size = selected ? 42 : isLive ? 38 : 32
+  const pulse =
+    reading.kind === 'review'
+      ? '<span class="catchy-pin-pulse" aria-hidden="true"></span>'
+      : ''
+
+  return L.divIcon({
+    className: 'catchy-pin-wrap',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    html: `
+      <span class="catchy-pin" data-live="${isLive}" data-selected="${selected}" style="--pin-color:${color};width:${size}px;height:${size}px;">
+        ${pulse}
+        <svg viewBox="0 0 24 24" width="${Math.round(size * 0.46)}" height="${Math.round(size * 0.46)}" fill="currentColor">
+          <path d="${glyphFor(reading.kind, isLive)}" />
+        </svg>
+      </span>
+    `,
+  })
+}
+
 type Props = {
   selected: number
   onSelect: (index: number) => void
@@ -76,12 +118,25 @@ type Props = {
   errorLabel?: string
   /** Live fleet state. Defaults to the static sample the landing page shows. */
   readings?: Reading[]
+  /** Overrides the wrapper's sizing — pass a `h-full`/flex class to fill a
+      parent instead of the default 16:11 card. */
+  className?: string
+  /** Pan to the selected reading when it changes (off by default: the ops
+      dashboard reorders its queue by severity, so panning on every pick
+      would fight the analyst; the live/demo views want it). */
+  followSelection?: boolean
 }
 
-export default function GoogleMap({ selected, onSelect, readings = READINGS }: Props) {
+export default function GoogleMap({
+  selected,
+  onSelect,
+  readings = READINGS,
+  className,
+  followSelection = false,
+}: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
-  const markersRef = useRef<L.CircleMarker[]>([])
+  const markersRef = useRef<L.Marker[]>([])
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
 
@@ -116,13 +171,8 @@ export default function GoogleMap({ selected, onSelect, readings = READINGS }: P
 
     // Grow / shrink the marker pool to match readings.length.
     while (markersRef.current.length < readings.length) {
-      const m = L.circleMarker(AKTAU, {
-        radius: 7,
-        weight: 2,
-        color: '#0a0f18',
-        fillOpacity: 0.95,
-      }).addTo(map)
       const idx = markersRef.current.length
+      const m = L.marker(AKTAU, { icon: pinIcon(readings[idx], false) }).addTo(map)
       m.on('click', () => onSelectRef.current(idx))
       markersRef.current.push(m)
     }
@@ -131,39 +181,37 @@ export default function GoogleMap({ selected, onSelect, readings = READINGS }: P
       if (m) map.removeLayer(m)
     }
 
-    // Update each marker's position / style from its reading.
+    // Update each marker's position / badge from its reading.
     readings.forEach((r, i) => {
       const m = markersRef.current[i]
       if (!m) return
       const isLive = r.source === 'pi'
       m.setLatLng([r.lat, r.lng])
-      m.setStyle({
-        fillColor: KIND_COLOR[r.kind] ?? '#5f739c',
-        radius: isLive ? 10 : 7,
-        // Live detections get a bright ring so they stand out from the fleet.
-        color: isLive ? '#22d3ee' : '#0a0f18',
-        weight: isLive ? 3 : 2,
-      })
+      m.setIcon(pinIcon(r, i === selected))
+      m.setZIndexOffset(i === selected ? 1000 : isLive ? 200 : 0)
       // Bind the tooltip once, then only update its text — re-binding every
       // sim tick (twice a second) would churn Tooltip objects and DOM nodes.
       const text = isLive
         ? `${Math.round((r.oil_coverage ?? 0) * 100)}% oil`
         : `${r.vessel} · ${r.ppm} ppm`
-      if (!m.getTooltip()) m.bindTooltip(text, { direction: 'top' })
+      if (!m.getTooltip())
+        m.bindTooltip(text, { direction: 'top', offset: [0, -6], className: 'catchy-tip' })
       else m.setTooltipContent(text)
     })
-  }, [readings])
+  }, [readings, selected])
 
-  // Reflect the selected index by emphasising that marker.
+  // Optionally centre the map on whichever reading is selected, so picking a
+  // card in a sidebar list actually shows you where it is.
   useEffect(() => {
-    markersRef.current.forEach((m, i) => {
-      m.setStyle({ opacity: i === selected ? 1 : 0.85 })
-      if (i === selected) m.bringToFront()
-    })
-  }, [selected, readings])
+    if (!followSelection) return
+    const map = mapRef.current
+    const r = readings[selected]
+    if (!map || !r) return
+    map.panTo([r.lat, r.lng], { animate: true, duration: 0.6 })
+  }, [followSelection, selected, readings])
 
   return (
-    <div className="relative aspect-[16/11] w-full overflow-hidden bg-oil">
+    <div className={className ?? 'relative aspect-[16/11] w-full overflow-hidden bg-oil'}>
       <div ref={hostRef} className="absolute inset-0" />
     </div>
   )

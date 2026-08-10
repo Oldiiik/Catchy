@@ -98,6 +98,85 @@ body {
   transform: scaleX(1);
 }
 
+/* ── Leaflet marker badges ────────────────────────────────────────────────
+   A beacon, not a dot: an ink disc holding a small glyph, ringed in the
+   reading's state colour. `--pin-color` is set inline per marker (see
+   GoogleMap.tsx); everything else — the ring, the lift on hover/selection,
+   the pulse for readings under review — lives here. */
+
+.catchy-pin-wrap {
+  background: none;
+  border: 0;
+}
+
+.catchy-pin {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--color-ink);
+  color: var(--pin-color);
+  /* Every shadow here is a centred blur (0 0 …), never an offset one — an
+     offset shadow reads as a directional drop shadow and makes the ring
+     look lopsided, like a comet tail, instead of an even halo. */
+  box-shadow:
+    0 0 0 2px var(--pin-color),
+    0 0 10px rgba(0, 0, 0, 0.55);
+  transition:
+    transform 280ms var(--ease-calm),
+    box-shadow 280ms var(--ease-calm);
+}
+
+.catchy-pin[data-live='true'] {
+  box-shadow:
+    0 0 0 2px #22d3ee,
+    0 0 10px rgba(0, 0, 0, 0.55);
+}
+
+.catchy-pin[data-selected='true'] {
+  transform: scale(1.12);
+  box-shadow:
+    0 0 0 3px var(--pin-color),
+    0 0 16px rgba(0, 0, 0, 0.6);
+}
+
+.catchy-pin-wrap:hover .catchy-pin {
+  transform: scale(1.08);
+}
+
+.leaflet-tooltip.catchy-tip {
+  background: var(--color-ink);
+  color: #03081a;
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 500;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+.leaflet-tooltip.catchy-tip::before {
+  border-top-color: var(--color-ink);
+}
+
+.catchy-pin-pulse {
+  position: absolute;
+  inset: -6px;
+  border-radius: 999px;
+  border: 1.5px solid var(--pin-color);
+  animation: catchy-pin-pulse 2200ms ease-out infinite;
+}
+
+@keyframes catchy-pin-pulse {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.75);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+}
+
 /* ── Map readings ─────────────────────────────────────────────────────────
    The markers themselves are modelled in three.js on a canvas above the map.
    What remains here is the invisible hit target that makes each reading
